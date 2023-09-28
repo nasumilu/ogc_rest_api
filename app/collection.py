@@ -1,8 +1,8 @@
 from abc import abstractmethod, ABC
 from datetime import datetime
-from typing import List, TypeVar, Type, Generic, Dict, Any, Tuple
+from typing import List, TypeVar, Type, Generic, Dict, Any, Tuple, Sequence
 
-from sqlalchemy import Engine, text
+from sqlalchemy import Engine, text, TextClause, RowMapping, Row
 
 from app.datasource import engine
 from app.schema import Link, LinkRelation, MediaType
@@ -13,15 +13,32 @@ T = TypeVar('T')
 
 class FeatureDataProvider(ABC, Generic[T]):
 
-    def __init__(self, engine: Engine):
-        self._engine = engine
+    def __init__(self, sql_engine: Engine):
+        self._sql_engine = sql_engine
+
+    def items(self):
+        stmt = self._sql_for_items_query()
+        with self._sql_engine.connect() as connection:
+            return {
+                'type': 'FeatureCollection',
+                'features': [self._map_feature_to_geojson(feature) for feature in connection.execute(stmt).all()]
+            }
 
     @abstractmethod
-    def items(self) -> List[T]:
+    def _sql_for_items_query(self) -> TextClause:
         pass
 
     @abstractmethod
-    def item(self, feature_id: str) -> T:
+    def _map_feature_to_geojson(self, feature: Row):
+        pass
+
+    def item(self, feature_id: str):
+        stmt = self._sql_for_item_query().bindparams(feature_id=feature_id)
+        with self._sql_engine.connect() as connection:
+            return self._map_feature_to_geojson(connection.execute(stmt).fetchone())
+
+    @abstractmethod
+    def _sql_for_item_query(self) -> TextClause:
         pass
 
 
@@ -169,54 +186,3 @@ def feature_collection(collection_id: str,
     return decorator
 
 
-@feature_collection(collection_id='tc-location',
-                    title='Tropical Cyclone Locations',
-                    description='The location points for tropical cyclones',
-                    spatial_extent=(-180, -68.5, 180, 83.01000),
-                    temporal_extent=(
-                            datetime.fromisoformat('1842-10-25 03:00:00.000000'),
-                            datetime.fromisoformat('2023-06-16 12:00:00.000000')
-                    ))
-class TCLocation(FeatureDataProvider):
-
-    def items(self) -> List[Any]:
-        # todo: Model the data here
-        sql = 'select id, sid, name, iso_time, st_asgeojson(geom) as geom from storm_location limit 25'
-        with self._engine.connect() as connection:
-            results = connection.execute(text(sql))
-        return [row._asdict() for row in results]
-
-    def item(self, feature_id: str) -> str:
-        # todo: possible sql injection; model data and use ORM
-        sql = ('select id, sid, name, season, basin, subbasin, iso_time, nature, intensity, wind, speed, direction, '
-               'pressure, gust, st_asgeojson(geom) geom  from storm_location where sid = \'{}\'').format(feature_id)
-        with self._engine.connect() as connection:
-            results = connection.execute(text(sql))
-        return results.fetchone()._asdict()
-
-
-@feature_collection(collection_id='tc-track',
-                    title='Tropical Cyclone Tracks',
-                    description='The storm track (connecting the dots)',
-                    spatial_extent=(-180, -68.5, 180, 83.01000),
-                    temporal_extent=(
-                            datetime.fromisoformat('1842-10-25 03:00:00.000000'),
-                            datetime.fromisoformat('2023-06-16 12:00:00.000000')
-                    ))
-class TCTrack(FeatureDataProvider):
-
-    def items(self) -> List[Any]:
-        # todo: Model the data here
-        sql = ('select id, sid, sshs, name, start_iso_time, end_iso_time, '
-               'st_astext(geom) as wkt from storm_track limit 100')
-        with self._engine.connect() as connection:
-            results = connection.execute(text(sql))
-        return [row._asdict() for row in results]
-
-    def item(self, feature_id: str) -> str:
-        # todo: possible sql injection; model data and use ORM
-        sql = 'select id, sid, sshs, name, start_iso_time, end_iso_time, st_astext(geom) as wkt from storm_track where sid = \'{}\''.format(
-            feature_id)
-        with self._engine.connect() as connection:
-            results = connection.execute(text(sql))
-        return results.fetchone()._asdict()
