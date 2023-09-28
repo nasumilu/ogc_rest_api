@@ -3,3 +3,5 @@ pydantic==2.4.1
 starlette==0.27.0
 SQLAlchemy==2.0.21
 shapely==2.0.1
+uvicorn==0.23.2
+psycopg2-binary==2.9.7
