@@ -10,6 +10,7 @@ from app.collection import feature_collection, FeatureDataProvider
 @feature_collection(collection_id='tc-location',
                     title='Tropical Cyclone Locations',
                     description='The location points for tropical cyclones',
+                    # todo: provide a mechanism to optionally retrieve the features spatial and temporal extent(s)
                     spatial_extent=(-180, -68.5, 180, 83.01000),
                     temporal_extent=(
                             datetime.fromisoformat('1842-10-25 03:00:00.000000'),
@@ -18,6 +19,7 @@ from app.collection import feature_collection, FeatureDataProvider
 class TCLocation(FeatureDataProvider):
 
     def _map_feature_to_geojson(self, feature: Row) -> Dict[str, Any]:
+        # todo: Model this results and leverage and ORM over this raw sql and mapping
         # there are tools for this but currently this a prototype project
         geom = from_wkt(feature[4])
         return {
