@@ -1,6 +1,6 @@
 from sqlalchemy import create_engine
 
-SQLALCHEMY_DATABASE_URL = "postgresql://postgres:1030asF!@192.168.124.235/geodatabase"
+SQLALCHEMY_DATABASE_URL = "postgresql://postgres:<password_goes_here>@localhost/geodatabase"
 
 # just raw queries for now
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
